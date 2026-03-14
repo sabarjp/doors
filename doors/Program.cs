@@ -7,6 +7,8 @@ namespace doors
 {
     class Program
     {
+        // The puzzle: locks can take 3-5 keys and their digital root must
+        //             equal the lock.
         public static void Main()
         {
             string line;
@@ -17,7 +19,7 @@ namespace doors
                 // Creates and initializes a new ArrayList.
                 ArrayList PersonList = new ArrayList();
 
-                Console.Write("Enter bracelets (no seperator chars!): ");
+                Console.Write("Enter keys (no seperator chars!): ");
                 line = Console.ReadLine();
 
                 foreach (var ch in line)
@@ -25,7 +27,7 @@ namespace doors
                     PersonList.Add(int.Parse(ch.ToString()));
                 }
 
-                Console.Write("Enter doors (no seperator chars!): ");
+                Console.Write("Enter locks (no seperator chars!): ");
                 line = Console.ReadLine();
 
                 ValidCombinationsMulti(PersonList, line, 3, 5);
@@ -104,7 +106,7 @@ namespace doors
         public static ArrayList ValidCombinations(ArrayList myList, int doorn, int min, int max)
         {
             int count;
-            int limit = (int)(Math.Pow(2.0, myList.Count));
+            int limit = 1 << myList.Count;
             ArrayList Mask = new ArrayList();
 
             //For each mask...
@@ -115,7 +117,7 @@ namespace doors
                 count = 1;
                 foreach (Object obj in myList){
                     //Console.Write((int)obj + "[" + ((int)Math.Pow(2,(myList.Count-count)) & i) + "]" + " ");
-                    if (((int)Math.Pow(2, (myList.Count - count)) & i) == (int)Math.Pow(2, (myList.Count - count)))
+                    if (((1 << (myList.Count - count)) & i) == (1 << (myList.Count - count)))
                     {
                         Mask.Add((int)obj);
                     }
@@ -141,70 +143,97 @@ namespace doors
 
         public static ArrayList ValidCombinationsMulti(ArrayList myList, string doorns, int min, int max)
         {
-            int count;
-            int ndx;
-            char ch;
-            int limit = (int)(Math.Pow(2.0, myList.Count));
-
             ArrayList Orig = (ArrayList)myList.Clone();
-            ArrayList Mask = new ArrayList();
-            ArrayList Leftover = new ArrayList();
+            ArrayList Path = new ArrayList();
+            int pathNumber = 0;
+            int remainingMask = (1 << Orig.Count) - 1;
 
-            //For each mask...
-            for (int i = 0; i < limit; i++)
-            {
-                //Check if each digit is compatible with the mask
-                //Console.WriteLine("Mask: " + i);
-                //Console.Write("  ");
-                ndx = 0;
-                myList = (ArrayList)Orig.Clone();
-                
-                while (myList.Count > 0 && myList.Count >= min && ndx <= (doorns.Length-1))
-                {
-                    count = 1;
-                    ch = doorns[ndx];
-                    foreach (Object obj in myList)
-                    {
-                        //Console.Write((int)obj + "[" + ((int)Math.Pow(2,(myList.Count-count)) & i) + "]" + " ");
-                        if (((int)Math.Pow(2, (myList.Count - count)) & i) == (int)Math.Pow(2, (myList.Count - count)))
-                        {
-                            Mask.Add((int)obj);
-                        }
-                        else
-                        {
-                            //These go onto the next door
-                            Leftover.Add((int)obj);
-                        }
-                        count++;
-                    }
-                    //Console.WriteLine(Mask.Count + " matches");
-                    //The list of compatible digits is now calculated
-                    //Get valid digital roots against the digits of the mask and print them
-                    //Also make sure the mask is in the limits
-                    if (Mask.Count >= min && Mask.Count <= max)
-                    {
-                        if (CalcDigitalRoot(Mask) == int.Parse(ch.ToString()))
-                        {
-                            if (myList.Count == Orig.Count)
-                            {
-                                Console.WriteLine("\nPath #" + i);
-                            }
-                            PrintDigitalRoot(Mask);
-                        }
-                    }
-
-                    Mask.Clear();
-
-                    //Set the leftovers to the list
-                    myList = (ArrayList)Leftover.Clone();
-
-                    Leftover.Clear();
-
-                    ndx++;
-                }
-            }
+            ValidCombinationsMultiRecursive(Orig, doorns, min, max, 0, remainingMask, Path, ref pathNumber);
 
             return null;
+        }
+
+        public static void ValidCombinationsMultiRecursive(ArrayList origList, string doorns, int min, int max, int ndx, int remainingMask, ArrayList path, ref int pathNumber)
+        {
+            int limit;
+            int targetDoor;
+
+            if (ndx > doorns.Length - 1)
+            {
+                pathNumber++;
+                Console.WriteLine("\nPath #" + pathNumber);
+
+                foreach (ArrayList mask in path)
+                {
+                    PrintDigitalRoot(mask);
+                }
+
+                return;
+            }
+
+            if (CountMaskBits(remainingMask) < min)
+            {
+                return;
+            }
+
+            limit = 1 << origList.Count;
+            targetDoor = int.Parse(doorns[ndx].ToString());
+
+            for (int i = 0; i < limit; i++)
+            {
+                ArrayList Mask;
+                int bitCount;
+
+                if ((i & remainingMask) != i)
+                {
+                    continue;
+                }
+
+                bitCount = CountMaskBits(i);
+                if (bitCount < min || bitCount > max)
+                {
+                    continue;
+                }
+
+                Mask = BuildMaskList(origList, i);
+
+                if (CalcDigitalRoot(Mask) == targetDoor)
+                {
+                    path.Add((ArrayList)Mask.Clone());
+                    ValidCombinationsMultiRecursive(origList, doorns, min, max, ndx + 1, remainingMask ^ i, path, ref pathNumber);
+                    path.RemoveAt(path.Count - 1);
+                }
+            }
+        }
+
+        public static int CountMaskBits(int mask)
+        {
+            int count = 0;
+
+            while (mask > 0)
+            {
+                count += (mask & 1);
+                mask >>= 1;
+            }
+
+            return count;
+        }
+
+        public static ArrayList BuildMaskList(ArrayList myList, int mask)
+        {
+            ArrayList Mask = new ArrayList();
+            int count = 1;
+
+            foreach (Object obj in myList)
+            {
+                if (((1 << (myList.Count - count)) & mask) == (1 << (myList.Count - count)))
+                {
+                    Mask.Add((int)obj);
+                }
+                count++;
+            }
+
+            return Mask;
         }
     }
 }
